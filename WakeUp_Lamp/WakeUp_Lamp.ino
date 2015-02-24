@@ -3,6 +3,7 @@ Purpose:
   Provide standard digital clock
     receive user input to set clock
     RGB-backlight control
+      upgrade: replace contrast-adjust potentiometer w/ a digital potentiometer. Uses SPI. 128 or 256 bit resolution.
     upgrade to periodic GPS time-sync
   Provide alarm clock
     receive user input to set alarm(s)
@@ -47,7 +48,7 @@ int year;
 int tempWhole; // temperature in degrees C. Whole numbers.
 int tempPart; // fractions of a degree C
 
-//LED backlighting for LCD needs a 0V sink. 255 = off, 0 = on full.
+//LED backlighting for LCD uses shared anode, needs a 0V sink. 255 = off, 0 = on full.
 int red = 200; //is pin 6
 int green = 205; //is pin 5
 int blue = 210; //is pin 4
@@ -56,12 +57,21 @@ int lamp = 0; //pin 2. drives a mosfet for dimming the lamp.
 // Utility stuff
 boolean refresh = true; //used to call an extra clock-screen refresh
 boolean alarmSet = true; //Is there an alarm set?
+int menuSelect = 0; //keep track of which menu we're on
 
+//define the pin numbers for our interface buttons
+const int menuButton = 22;
+const int incButton = 24;
+const int decButton = 26;
 
 void setup() {
-  Wire.begin(); //this is the 2-wire interface protocol. I2C
+  Wire.begin(); //this is the 2-wire interface protocol.
   Serial.begin(9600);
   lcd.begin(16, 2);   // set up the LCD's number of columns and rows
+  
+  pinMode(menuButton, INPUT);
+  pinMode(incButton, INPUT);
+  pinMode(decButton, INPUT);
   
   // One-time setup of clock; only needs to happen if clock is reset
 /*
@@ -88,26 +98,23 @@ void setup() {
 
 
 void loop() {
-  /*
-  while(Serial.available()){ //we're going to listen for instructions from the PC, for setting up the clock
-    address = Serial.read();
-    data = Serial.read();
-  Wire.beginTransmission(0x68); // 0x68 is DS3231 (chronodot) device address
-  Wire.write(byte(address)); // start at defined register
-  Wire.write(byte(data)); // transmit the data
-  Wire.endTransmission();
+  
+  if (menuSelect > 0){
+    menu(); //enter the menu
   }
-  */
-  getRTC();
-  if (seconds == 0 || refresh == true) { // the screen only needs to be updated once per minute, or when we ask
-    getTemp();
-    digitalclock();
-    refresh == false; }
+  else {
+    getRTC();
+    if(seconds == 0 || refresh == true) { // the screen only needs to be updated once per minute, or when we ask, and not when we're in the menu
+      getTemp();
+      digitalclock();
+      refresh == false;
+    }
+  }
   //set the screen color
   analogWrite(6, red);
   analogWrite(5, green);
   analogWrite(4, blue);
-  delay (500); // replace with edge-detecting input from clock 1Hz output
+delay(100);
 }
 
 
@@ -131,7 +138,6 @@ void getRTC(){ // query the time from the RTC, translate it to useful values
     seconds = (((seconds & 0b01110000)>>4)*10 + (seconds & 0b00001111)); // convert BCD to decimal
     minutes = (((minutes & 0b01110000)>>4)*10 + (minutes & 0b00001111)); // convert BCD to decimal
     hours = (((hours & 0b00100000)>>5)*20 + ((hours & 0b00010000)>>4)*10 + (hours & 0b00001111)); // convert BCD to decimal (assume 24 hour mode)
-    weekday = (weekday & 0b00000111); // convert BCD to decimal
     day = (((day & 0b00110000)>>4)*10 + (day & 0b00001111)); // convert BCD to decimal
     year = (2000 + ((month & 0b10000000)>>7)*100 + ((year & 0b11110000)>>4)*10 + (year & 0b00001111)); // Year "00" is 2000. There is leapyear compensation through 2100. century is indicated by the Month's MSB when 'year' rolls past 99
     month = (((month & 0b00010000)>>4)*10 + (month & 0b00001111)); // convert BCD to decimal
@@ -153,6 +159,22 @@ void getTemp(){ //query the RTC for its internal temperature data
 }
 
 
+void menu(){ // Where we change settings. This is the most ambitious section.
+  lcd.clear();
+  lcd.blink();
+  switch (menuSelect){
+   case 1: //adjust display brightness
+   
+   break;
+   case 2:
+   
+   break;
+   default:
+      lcd.print("error: no menu"); 
+  }
+}
+  
+  
 void digitalclock(){  // digital clock display of the time, date, and such. this is the "home screen"
   // set the cursor to column 0, line 1
   // (note: line 1 is the second row, since counting begins with 0):

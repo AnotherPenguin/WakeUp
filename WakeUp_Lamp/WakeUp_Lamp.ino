@@ -98,7 +98,6 @@ void setup() {
 
 
 void loop() {
-  
   if (menuSelect > 0){
     menu(); //enter the menu
   }

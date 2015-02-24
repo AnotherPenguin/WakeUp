@@ -73,7 +73,7 @@ void setup() {
   pinMode(incButton, INPUT);
   pinMode(decButton, INPUT);
   
-  // One-time setup of clock; only needs to happen if clock is reset
+// One-time setup of clock; only needs to happen if clock is reset
 /*
   Wire.beginTransmission(0x68); // I2C address of DS3231
   Wire.write(0x0E); // select Control register
@@ -88,12 +88,14 @@ void setup() {
 */
 /*Set the year, day, etc:
   Wire.beginTransmission(0x68); // 0x68 is DS3231 (chronodot) device address
-  Wire.write(0x01); // start at defined register ('minutes' shown)
-  // First byte: set minutes to "31". Second byte: set hours to "9", 24-hour clock mode.
-  Wire.write(0b00110001); // transmit the data. add more write bytes to write to multiple sequential registers at once
-  Wire.write(0b01001001);
+  Wire.write(0x00); // start at defined register ('seconds' shown)
+  // First byte: set seconds to "0", minutes to "23". Second byte: set hours to "22", 24-hour clock mode; set day to "2"
+  Wire.write(0b00000000); // transmit the data. add more write bytes to write to multiple sequential registers at once
+  Wire.write(0b00100011);
+  Wire.write(0b00100010);
+  Wire.write(0b00000010);
   Wire.endTransmission();
-*/
+  */
 }
 
 
@@ -136,7 +138,7 @@ void getRTC(){ // query the time from the RTC, translate it to useful values
    // digits 1-10 are relayed as nibbles, two nibbles per byte. This makes sense for relaying digits to a traditional digital clock display, but not for actually understanding the numbers. So, we reinterpret the separate digits as one decimal integer:
     seconds = (((seconds & 0b01110000)>>4)*10 + (seconds & 0b00001111)); // convert BCD to decimal
     minutes = (((minutes & 0b01110000)>>4)*10 + (minutes & 0b00001111)); // convert BCD to decimal
-    hours = (((hours & 0b00100000)>>5)*20 + ((hours & 0b00010000)>>4)*10 + (hours & 0b00001111)); // convert BCD to decimal (assume 24 hour mode)
+    hours = (((hours & 0b00110000)>>4)*10 + (hours & 0b00001111)); // convert BCD to decimal (24 hour mode)
     day = (((day & 0b00110000)>>4)*10 + (day & 0b00001111)); // convert BCD to decimal
     year = (2000 + ((month & 0b10000000)>>7)*100 + ((year & 0b11110000)>>4)*10 + (year & 0b00001111)); // Year "00" is 2000. There is leapyear compensation through 2100. century is indicated by the Month's MSB when 'year' rolls past 99
     month = (((month & 0b00010000)>>4)*10 + (month & 0b00001111)); // convert BCD to decimal

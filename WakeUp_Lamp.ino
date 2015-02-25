@@ -28,7 +28,7 @@ Components
   
   day 1 should equal sunday
   
-Borrowed from ChronoDot example code, using RTClib as guidance.
+Borrowed Chronodot time translations from the ChronoDot example code, using RTClib as guidance.
 */
 
 #include <Wire.h>;
@@ -37,7 +37,7 @@ Borrowed from ChronoDot example code, using RTClib as guidance.
 // initialize the LCD library with the correct PWM pin numbers
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
 
-// establish our RTC variables here so they're universally accessible
+// establish our RTC variables
 int seconds;
 int minutes;
 int hours;
@@ -52,17 +52,28 @@ int tempPart; // fractions of a degree C
 int red = 200; //is pin 6
 int green = 205; //is pin 5
 int blue = 210; //is pin 4
-int lamp = 0; //pin 2. drives a mosfet for dimming the lamp.
+int lamp = 0; //pin 13. drives a mosfet for dimming the lamp.
+int lampSetpoint = 132; //for storing the desired lamp setting.
 
 // Utility stuff
 boolean refresh = true; //used to call an extra clock-screen refresh
 boolean alarmSet = true; //Is there an alarm set?
-int menuSelect = 0; //keep track of which menu we're on
+int hold = 0;
 
 //define the pin numbers for our interface buttons
 const int menuButton = 22;
 const int incButton = 24;
 const int decButton = 26;
+const int leftButton = 28;
+const int rightButton = 30;
+const int enterButton = 32;
+//and value retainers for those buttons
+int menuSelect = 0; //keep track of which menu we're on
+boolean inc = false;
+boolean dec = false;
+boolean left = false;
+boolean right = false;
+boolean enter = false;
 
 void setup() {
   Wire.begin(); //this is the 2-wire interface protocol.
@@ -72,6 +83,8 @@ void setup() {
   pinMode(menuButton, INPUT);
   pinMode(incButton, INPUT);
   pinMode(decButton, INPUT);
+  pinMode(rightButton, INPUT);
+  pinMode(leftButton, INPUT);
   
 // One-time setup of clock; only needs to happen if clock is reset
 /*
@@ -86,37 +99,91 @@ void setup() {
   Wire.write(0b00000000); // write register bitmap: reset Oscillator Stop Flag, disable 32khz output, clear alarms
   Wire.endTransmission();
 */
-/*Set the year, day, etc:
+/*Set the seconds, day, whatnot:
   Wire.beginTransmission(0x68); // 0x68 is DS3231 (chronodot) device address
   Wire.write(0x00); // start at defined register ('seconds' shown)
-  // First byte: set seconds to "0", minutes to "23". Second byte: set hours to "22", 24-hour clock mode; set day to "2"
+  // First byte: set seconds to "0", minutes to "39". Second byte: set hours to "18", 24-hour clock mode; set day to "3"
   Wire.write(0b00000000); // transmit the data. add more write bytes to write to multiple sequential registers at once
-  Wire.write(0b00100011);
-  Wire.write(0b00100010);
-  Wire.write(0b00000010);
+  Wire.write(0b00111001);
+  Wire.write(0b00011000);
+  Wire.write(0b00000011);
   Wire.endTransmission();
   */
 }
 
 
 void loop() {
-  if (menuSelect > 0){
+  //debounced button functions go here
+  //for now, we'll use commands from the Serial port in place of buttons.
+  while(Serial.available()){
+    int command = Serial.read();
+    switch (command){
+      case 122://menuButton z
+      menuSelect ++;
+      break;
+      case 119://incButton w
+      inc = true;
+      break;
+      case 115://decButton s
+      dec = true;
+      break;
+      case 97://leftButton a 
+      left = true;
+      break;
+      case 100://right button d
+      right = true;
+      break;
+      case 32://enter button space
+      enter = true;
+      break;
+      default:
+      Serial.print("invalid input");
+    }
+  }
+  
+  //beginning of a decision tree. The LCD can only really do one thing at a time.
+  if (menuSelect > 0){ 
     menu(); //enter the menu
   }
   else {
     getRTC();
-    if(seconds == 0 || refresh == true) { // the screen only needs to be updated once per minute, or when we ask, and not when we're in the menu
-      getTemp();
-      digitalclock();
-      refresh == false;
+    if(inc){
+      if(lamp < 255) lampSetpoint ++;
+      lcd.clear();
+      lcd.print("lamp brightness:");
+      lcd.setCursor(0,1);
+      lcd.print(lampSetpoint);
+      lcd.print("/255");
+      inc = false;
+      hold = 1200;
+    }
+    if(dec){
+      if(lamp > 0) lampSetpoint --;
+      lcd.clear();
+      lcd.print("lamp brightness:");
+      lcd.setCursor(0,1);
+      lcd.print(lampSetpoint);
+      lcd.print("/255");
+      dec = false;
+      hold = 1200;
+    }
+    if (hold > 0) hold--;
+    else{
+      if(seconds == 0 || refresh == true) { // the clock screen only needs to be updated once per minute, or when we ask, and not when we're in the menu
+        getTemp();
+        digitalclock();
+        refresh = false;
+      }
     }
   }
+ 
   //set the screen color
   analogWrite(6, red);
   analogWrite(5, green);
   analogWrite(4, blue);
-delay(100);
-}
+}//end of loop
+
+
 
 
 void getRTC(){ // query the time from the RTC, translate it to useful values
@@ -164,14 +231,25 @@ void menu(){ // Where we change settings. This is the most ambitious section.
   lcd.clear();
   lcd.blink();
   switch (menuSelect){
-   case 1: //adjust display brightness
+   case 1://TBD
    
-   break;
-   case 2:
-   
-   break;
+     break;
+   case 2://set alarm1
+     //first, we ask the RTC for alarm1's info. this only needs to happen once.
+     
+     //we display the info. 
+     
+     //use buttons to select digits
+     break;
+   case 3://set alarm2
+   //same as alarm1, but different RTC register
+     break;
+   case 4://adjust display brightness and color
+   //invert RGB values for clarity (so high is more, low is less)
+   //scroll L/R, inc/dec
+     break;
    default:
-      lcd.print("error: no menu"); 
+      lcd.print(" error: no menu "); 
   }
 }
   
@@ -204,19 +282,19 @@ void digitalclock(){  // digital clock display of the time, date, and such. this
       lcd.print("Mon");
       break;
     case 3:
-      lcd.print("Tues");
+      lcd.print("Tue");
       break;
     case 4:
-      lcd.print("Wednes");
+      lcd.print("Wed");
       break;
     case 5:
-      lcd.print("Thurs");
+      lcd.print("Thu");
       break;
     case 6:
       lcd.print("Fri");
       break;
     case 7:
-      lcd.print("Satur");
+      lcd.print("Sat");
       break;
     default:
       lcd.print("err");
